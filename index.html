@@ -45,15 +45,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 13px; color: var(--muted); }
 
-  /* SETUP SCREEN */
-  .setup-screen { position: fixed; inset: 0; background: var(--bg); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 30px; }
-  .setup-box { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 400px; }
-  .setup-box h2 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), var(--child)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .setup-box p { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
-  .setup-box input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; font-family: inherit; outline: none; margin-bottom: 12px; }
-  .setup-box input:focus { border-color: var(--accent); }
-  .setup-box button { width: 100%; padding: 13px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
-  .setup-hint { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
 
   /* CARDS */
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
@@ -178,16 +170,7 @@
 </head>
 <body>
 
-<!-- SETUP SCREEN (shown on first launch) -->
-<div class="setup-screen" id="setup-screen">
-  <div class="setup-box">
-    <h2>💰 Budget Famille</h2>
-    <p>Entrez l'URL de votre Google Apps Script pour connecter l'application à votre Google Sheet partagé.</p>
-    <input type="url" id="setup-url" placeholder="https://script.google.com/macros/s/…/exec">
-    <button onclick="saveSetup()">Connecter et démarrer</button>
-    <p class="setup-hint">📌 Vous trouverez cette URL dans Google Apps Script → Déployer → Gérer les déploiements.<br>Toute la famille utilise la même URL.</p>
-  </div>
-</div>
+
 
 <!-- LOADING -->
 <div class="loading" id="loading">
@@ -354,7 +337,7 @@ const MEMBERS = ['moi','femme','enfant'];
 const MEMBER_LABELS = {moi:'👨 Moi', femme:'👩 Femme', enfant:'👦 Enfant'};
 const MEMBER_COLORS = {moi:'#6c8fff', femme:'#f472b6', enfant:'#4cde9a'};
 
-let API_URL = localStorage.getItem('bf_api_url') || '';
+let API_URL = 'https://script.google.com/macros/s/AKfycbyce8ZEOEd2TmLjuoSQBv8FL5l6dCT6iFdHLDmjY6l1cfX5KyhYZ7HcjmPuLHGuCTk/exec';
 let currentMonth = new Date().getMonth();
 let currentYear  = new Date().getFullYear();
 let revMember = 'moi';
@@ -366,24 +349,9 @@ let selColorVal = '#6c8fff';
 let cache = { rev: [], dep: [], goals: [] };
 
 // ===================================================
-//  SETUP
+//  INIT
 // ===================================================
-function checkSetup() {
-  if (!API_URL) {
-    document.getElementById('setup-screen').style.display = 'flex';
-  } else {
-    document.getElementById('setup-screen').style.display = 'none';
-    syncAll();
-  }
-}
-function saveSetup() {
-  const url = document.getElementById('setup-url').value.trim();
-  if (!url.startsWith('https://script.google.com')) { alert('URL invalide. Elle doit commencer par https://script.google.com'); return; }
-  API_URL = url;
-  localStorage.setItem('bf_api_url', url);
-  document.getElementById('setup-screen').style.display = 'none';
-  syncAll();
-}
+syncAll();
 
 // ===================================================
 //  API CALLS
@@ -781,7 +749,7 @@ if ('serviceWorker' in navigator) {
 // ===================================================
 //  INIT
 // ===================================================
-checkSetup();
+syncAll();
 </script>
 </body>
 </html>
