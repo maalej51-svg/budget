@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<meta name="theme-color" content="#0f1117">
+<link rel="manifest" href="manifest.json">
+<title>Budget Famille</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a; --border: #2e3347;
+    --text: #e8eaf6; --muted: #6b7199; --accent: #6c8fff; --green: #4cde9a;
+    --red: #ff5f7e; --yellow: #ffd166; --me: #6c8fff; --wife: #f472b6; --child: #4cde9a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; overscroll-behavior: none; }
+
+  /* SYNC BAR */
+  .sync-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; display: inline-block; }
+  .sync-dot.online { background: var(--green); } .sync-dot.offline { background: var(--red); } .sync-dot.syncing { background: var(--yellow); animation: pulse .8s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  .sync-btn { background: none; border: none; color: var(--accent); font-size: 11px; font-weight: 700; cursor: pointer; padding: 2px 6px; }
+
+  /* HEADER */
+  .header { padding: 16px 20px 0; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-family: 'Playfair Display', serif; font-size: 20px; background: linear-gradient(135deg, var(--accent), var(--child)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .month-nav { display: flex; align-items: center; gap: 8px; }
+  .month-nav button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .month-nav span { font-size: 12px; font-weight: 600; min-width: 75px; text-align: center; }
+
+  /* PAGES */
+  .page { display: none; padding: 14px 20px 88px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .page.active { display: block; }
+
+  /* LOADING OVERLAY */
+  .loading { position: fixed; inset: 0; background: rgba(15,17,23,.85); z-index: 200; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+  .loading.show { display: flex; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 13px; color: var(--muted); }
+
+
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+
+  /* KPI */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .kpi-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+  .kpi-value { font-size: 19px; font-weight: 800; }
+  .kpi-value.green { color: var(--green); } .kpi-value.red { color: var(--red); } .kpi-value.blue { color: var(--accent); }
+
+  /* PROGRESS */
+  .prog-wrap { margin: 6px 0; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .prog-bar { height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 99px; transition: width .4s; }
+
+  /* MEMBER TABS */
+  .member-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .member-tab { flex: 1; padding: 7px 0; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; transition: all .2s; }
+  .member-tab.active[data-m="moi"]   { border-color: var(--me);    color: var(--me);    background: rgba(108,143,255,.12); }
+  .member-tab.active[data-m="femme"] { border-color: var(--wife);  color: var(--wife);  background: rgba(244,114,182,.12); }
+  .member-tab.active[data-m="enfant"]{ border-color: var(--child); color: var(--child); background: rgba(76,222,154,.12); }
+
+  /* ENTRIES */
+  .entry-list { display: flex; flex-direction: column; gap: 7px; }
+  .entry-item { background: var(--surface2); border-radius: 12px; padding: 11px 13px; display: flex; justify-content: space-between; align-items: center; }
+  .entry-info { flex: 1; }
+  .entry-name { font-size: 13px; font-weight: 600; }
+  .entry-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .entry-amount { font-size: 15px; font-weight: 700; }
+  .entry-amount.income  { color: var(--green); }
+  .entry-amount.expense { color: var(--red); }
+  .entry-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; margin-left: 8px; padding: 4px; }
+
+  /* ADD BTN */
+  .add-btn { width: 100%; padding: 12px; border-radius: 12px; border: 1.5px dashed var(--border); background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+
+  /* DOT */
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot.moi   { background: var(--me); }
+  .dot.femme { background: var(--wife); }
+  .dot.enfant{ background: var(--child); }
+
+  /* CAT ROW */
+  .cat-row { display: flex; align-items: center; margin-bottom: 8px; }
+  .cat-row-label { font-size: 12px; width: 105px; flex-shrink: 0; }
+  .cat-bar-wrap { flex: 1; height: 9px; background: var(--surface2); border-radius: 99px; overflow: hidden; display: flex; }
+  .cat-bar-seg { height: 100%; }
+  .cat-amount { font-size: 11px; font-weight: 700; margin-left: 7px; width: 60px; text-align: right; }
+
+  /* GOALS */
+  .goal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .goal-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .goal-emoji { font-size: 26px; }
+  .goal-info { flex: 1; }
+  .goal-name { font-size: 15px; font-weight: 700; }
+  .goal-amounts { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .goal-pct { font-size: 18px; font-weight: 800; }
+  .goal-actions { display: flex; gap: 7px; margin-top: 10px; }
+  .btn-sm { flex: 1; padding: 7px; border-radius: 10px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-outline { background: var(--surface2); color: var(--text); }
+
+  /* SURPLUS */
+  .surplus-banner { background: linear-gradient(135deg, rgba(76,222,154,.15), rgba(108,143,255,.1)); border: 1px solid var(--green); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .surplus-label { font-size: 12px; color: var(--green); font-weight: 600; }
+  .surplus-val { font-size: 20px; font-weight: 800; color: var(--green); }
+
+  /* RECENT */
+  .recent-item { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .recent-item:last-child { border-bottom: none; }
+  .recent-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .recent-info { flex: 1; }
+  .recent-name { font-size: 12px; font-weight: 600; }
+  .recent-meta { font-size: 10px; color: var(--muted); }
+  .recent-amt  { font-size: 13px; font-weight: 700; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 100; display: none; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 20px 20px 0 0; padding: 22px 20px; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+  .modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+  .form-group { margin-bottom: 12px; }
+  .form-group label { font-size: 11px; color: var(--muted); margin-bottom: 5px; display: block; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .form-group input, .form-group select { width: 100%; padding: 11px 13px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface2); color: var(--text); font-size: 14px; font-family: inherit; outline: none; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-group select option { background: var(--surface2); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-cancel  { flex: 1; padding: 12px; border-radius: 12px; border: 1.5px solid var(--border); background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-confirm { flex: 2; padding: 12px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+
+  /* EMOJI / COLOR */
+  .emoji-row { display: flex; flex-wrap: wrap; gap: 7px; }
+  .emoji-opt { width: 36px; height: 36px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface2); font-size: 19px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .emoji-opt.selected { border-color: var(--accent); background: rgba(108,143,255,.15); }
+  .color-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  .color-opt { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .color-opt.selected { border-color: #fff; transform: scale(1.15); }
+
+  /* HISTORY */
+  .history-item { font-size: 11px; color: var(--muted); padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .history-item:last-child { border-bottom: none; }
+  .history-amt { color: var(--green); font-weight: 700; }
+
+  /* SECTION TITLE */
+  .section-title { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 7px; text-transform: uppercase; letter-spacing: .8px; }
+
+  /* EMPTY */
+  .empty-state { text-align: center; padding: 28px; color: var(--muted); font-size: 13px; }
+  .empty-state .big { font-size: 34px; margin-bottom: 7px; }
+
+  /* BOTTOM NAV */
+  .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--surface); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 8px 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); z-index: 50; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; color: var(--muted); font-size: 9px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: .5px; padding: 3px 0; transition: color .2s; }
+  .nav-btn svg { width: 21px; height: 21px; }
+  .nav-btn.active { color: var(--accent); }
+
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+
+
+<!-- LOADING -->
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Synchronisation...</div>
+</div>
+
+<!-- SYNC BAR -->
+<div class="sync-bar">
+  <div><span class="sync-dot online" id="sync-dot"></span><span id="sync-status">Connecté</span></div>
+  <button class="sync-btn" onclick="syncAll()">↻ Sync</button>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>💰 Budget Famille</h1>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">‹</button>
+    <span id="monthLabel"></span>
+    <button onclick="changeMonth(1)">›</button>
+  </div>
+</div>
+
+<!-- PAGES -->
+<div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
+
+<div id="page-revenus" class="page">
+  <div class="member-tabs">
+    <button class="member-tab active" data-m="moi"    onclick="selectMember('rev','moi',this)">👨 Moi</button>
+    <button class="member-tab"        data-m="femme"  onclick="selectMember('rev','femme',this)">👩 Femme</button>
+    <button class="member-tab"        data-m="enfant" onclick="selectMember('rev','enfant',this)">👦 Enfant</button>
+  </div>
+  <div id="rev-content"></div>
+  <button class="add-btn" onclick="openModal('rev')">＋ Ajouter un revenu</button>
+</div>
+
+<div id="page-depenses" class="page">
+  <div class="member-tabs">
+    <button class="member-tab active" data-m="moi"    onclick="selectMember('dep','moi',this)">👨 Moi</button>
+    <button class="member-tab"        data-m="femme"  onclick="selectMember('dep','femme',this)">👩 Femme</button>
+    <button class="member-tab"        data-m="enfant" onclick="selectMember('dep','enfant',this)">👦 Enfant</button>
+  </div>
+  <div id="dep-content"></div>
+  <button class="add-btn" onclick="openModal('dep')">＋ Ajouter une dépense</button>
+</div>
+
+<div id="page-objectifs" class="page">
+  <div id="surplus-section"></div>
+  <div id="goals-list"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="showPage('dashboard',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Tableau
+  </button>
+  <button class="nav-btn" onclick="showPage('revenus',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+    Revenus
+  </button>
+  <button class="nav-btn" onclick="showPage('depenses',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+    Dépenses
+  </button>
+  <button class="nav-btn" onclick="showPage('objectifs',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    Objectifs
+  </button>
+</nav>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-rev">
+  <div class="modal">
+    <h3>💵 Nouveau revenu</h3>
+    <div class="form-group"><label>Source</label>
+      <select id="rev-source"><option>Salaire</option><option>Freelance</option><option>Loyer reçu</option><option>Prime</option><option>Remboursement</option><option>Autre</option></select></div>
+    <div class="form-group"><label>Description</label><input type="text" id="rev-desc" placeholder="ex: Salaire mars, Client XYZ..."></div>
+    <div class="form-group"><label>Montant (DT)</label><input type="number" id="rev-amount" placeholder="0.000" step="0.001"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('rev')">Annuler</button>
+      <button class="btn-confirm" onclick="addEntry('rev')">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-dep">
+  <div class="modal">
+    <h3>💳 Nouvelle dépense</h3>
+    <div class="form-group"><label>Catégorie</label>
+      <select id="dep-cat"><option>🏠 Logement</option><option>🛒 Alimentation</option><option>🚗 Transport</option><option>💡 Factures</option><option>🏥 Santé</option><option>🎬 Loisirs</option><option>👕 Vêtements</option><option>📚 Éducation</option><option>🍽️ Restaurant</option><option>✈️ Voyage</option><option>🎁 Cadeaux</option><option>📦 Autre</option></select></div>
+    <div class="form-group"><label>Pour quoi ?</label><input type="text" id="dep-desc" placeholder="ex: Courses Monoprix, Plein essence..."></div>
+    <div class="form-group"><label>Montant (DT)</label><input type="number" id="dep-amount" placeholder="0.000" step="0.001"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('dep')">Annuler</button>
+      <button class="btn-confirm" onclick="addEntry('dep')">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-goal">
+  <div class="modal">
+    <h3>🎯 Nouvel objectif</h3>
+    <div class="form-group"><label>Nom</label><input type="text" id="goal-name" placeholder="ex: Vacances été, Nouvelle voiture..."></div>
+    <div class="form-group"><label>Emoji</label>
+      <div class="emoji-row">
+        <div class="emoji-opt selected" onclick="selEmoji(this,'🏖️')">🏖️</div><div class="emoji-opt" onclick="selEmoji(this,'🚗')">🚗</div>
+        <div class="emoji-opt" onclick="selEmoji(this,'🏠')">🏠</div><div class="emoji-opt" onclick="selEmoji(this,'💻')">💻</div>
+        <div class="emoji-opt" onclick="selEmoji(this,'✈️')">✈️</div><div class="emoji-opt" onclick="selEmoji(this,'🎓')">🎓</div>
+        <div class="emoji-opt" onclick="selEmoji(this,'💍')">💍</div><div class="emoji-opt" onclick="selEmoji(this,'🏋️')">🏋️</div>
+        <div class="emoji-opt" onclick="selEmoji(this,'📱')">📱</div><div class="emoji-opt" onclick="selEmoji(this,'🎮')">🎮</div>
+      </div>
+    </div>
+    <div class="form-group"><label>Couleur</label>
+      <div class="color-row">
+        <div class="color-opt selected" style="background:#6c8fff" onclick="selColor(this,'#6c8fff')"></div>
+        <div class="color-opt" style="background:#4cde9a" onclick="selColor(this,'#4cde9a')"></div>
+        <div class="color-opt" style="background:#f472b6" onclick="selColor(this,'#f472b6')"></div>
+        <div class="color-opt" style="background:#ffd166" onclick="selColor(this,'#ffd166')"></div>
+        <div class="color-opt" style="background:#ff5f7e" onclick="selColor(this,'#ff5f7e')"></div>
+        <div class="color-opt" style="background:#a78bfa" onclick="selColor(this,'#a78bfa')"></div>
+        <div class="color-opt" style="background:#38bdf8" onclick="selColor(this,'#38bdf8')"></div>
+        <div class="color-opt" style="background:#fb923c" onclick="selColor(this,'#fb923c')"></div>
+      </div>
+    </div>
+    <div class="form-group"><label>Montant cible (DT)</label><input type="number" id="goal-target" placeholder="ex: 2000.000" step="0.001"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('goal')">Annuler</button>
+      <button class="btn-confirm" onclick="addGoal()">Créer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-transfer">
+  <div class="modal">
+    <h3>💸 Virer le surplus</h3>
+    <div class="form-group"><label>Objectif</label><select id="transfer-goal"></select></div>
+    <div class="form-group"><label>Montant (DT)</label><input type="number" id="transfer-amount" placeholder="0.000" step="0.001"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('transfer')">Annuler</button>
+      <button class="btn-confirm" onclick="doTransfer()">Virer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-manual">
+  <div class="modal">
+    <h3>➕ Ajouter manuellement</h3>
+    <div class="form-group"><label>Objectif</label><select id="manual-goal"></select></div>
+    <div class="form-group"><label>Montant (DT)</label><input type="number" id="manual-amount" placeholder="0.000" step="0.001"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('manual')">Annuler</button>
+      <button class="btn-confirm" onclick="doManual()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================
+//  CONFIG
+// ===================================================
+const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MEMBERS = ['moi','femme','enfant'];
+const MEMBER_LABELS = {moi:'👨 Moi', femme:'👩 Femme', enfant:'👦 Enfant'};
+const MEMBER_COLORS = {moi:'#6c8fff', femme:'#f472b6', enfant:'#4cde9a'};
+
+let API_URL = 'https://script.google.com/macros/s/AKfycbyce8ZEOEd2TmLjuoSQBv8FL5l6dCT6iFdHLDmjY6l1cfX5KyhYZ7HcjmPuLHGuCTk/exec';
+let currentMonth = new Date().getMonth();
+let currentYear  = new Date().getFullYear();
+let revMember = 'moi';
+let depMember = 'moi';
+let selEmojiVal = '🏖️';
+let selColorVal = '#6c8fff';
+
+// Local cache (so app works offline too)
+let cache = { rev: [], dep: [], goals: [] };
+
+// ===================================================
+//  INIT
+// ===================================================
+syncAll();
+
+// ===================================================
+//  API CALLS
+// ===================================================
+function api(params) {
+  setSyncing(true);
+  return new Promise((resolve) => {
+    const cbName = 'cb_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      setSyncing(false);
+      setOnline(false);
+      resolve({ error: 'Timeout' });
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cbName] = function(data) {
+      cleanup();
+      setSyncing(false);
+      setOnline(true);
+      resolve(data);
+    };
+
+    params.callback = cbName;
+    script.src = API_URL + '?' + new URLSearchParams(params).toString();
+    script.onerror = () => {
+      cleanup();
+      setSyncing(false);
+      setOnline(false);
+      resolve({ error: 'Network error' });
+    };
+    document.head.appendChild(script);
+  });
+}
+
+function setSyncing(v) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-status');
+  if (v) { dot.className = 'sync-dot syncing'; txt.textContent = 'Synchronisation...'; }
+}
+function setOnline(v) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-status');
+  dot.className = v ? 'sync-dot online' : 'sync-dot offline';
+  txt.textContent = v ? 'Connecté' : 'Hors ligne';
+}
+
+async function syncAll() {
+  showLoading('Chargement des données...');
+  const r = await api({ action: 'getAll', month: currentMonth, year: currentYear });
+  if (!r.error) {
+    cache.rev = r.rev || [];
+    cache.dep = r.dep || [];
+  }
+  const g = await api({ action: 'getGoals' });
+  if (!g.error) cache.goals = g.goals || [];
+  hideLoading();
+  renderAll();
+}
+
+// ===================================================
+//  LOADING
+// ===================================================
+function showLoading(txt) {
+  document.getElementById('loading-text').textContent = txt || '...';
+  document.getElementById('loading').classList.add('show');
+}
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+// ===================================================
+//  NAVIGATION
+// ===================================================
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAll();
+}
+function changeMonth(dir) {
+  currentMonth += dir;
+  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
+  syncAll();
+}
+function selectMember(type, m, el) {
+  if (type === 'rev') revMember = m; else depMember = m;
+  el.closest('.member-tabs').querySelectorAll('.member-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (type === 'rev') renderRevContent(); else renderDepContent();
+}
+
+// ===================================================
+//  RENDER
+// ===================================================
+function renderAll() {
+  document.getElementById('monthLabel').textContent = MONTHS[currentMonth].slice(0,3) + ' ' + currentYear;
+  renderRevContent();
+  renderDepContent();
+  renderDashboard();
+  renderObjectifs();
+}
+
+function renderRevContent() {
+  const entries = cache.rev.filter(e => e.member === revMember);
+  const total = entries.reduce((s,e) => s + parseFloat(e.amount||0), 0);
+  const color = MEMBER_COLORS[revMember];
+  let html = `<div class="card"><div class="card-title">Total revenus — ${MEMBER_LABELS[revMember]}</div>
+    <div style="font-size:28px;font-weight:800;color:${color}">+${fmt(total)}</div></div>`;
+  if (!entries.length) {
+    html += `<div class="empty-state"><div class="big">💶</div>Aucun revenu ce mois</div>`;
+  } else {
+    html += `<div class="section-title">Entrées</div><div class="entry-list">`;
+    entries.forEach(e => {
+      html += `<div class="entry-item">
+        <div class="entry-info"><div class="entry-name">${e.source}</div><div class="entry-sub">${e.desc||'—'}</div></div>
+        <div class="entry-amount income">+${fmt(parseFloat(e.amount))}</div>
+        <button class="entry-del" onclick="deleteEntry('rev','${e.id}')">✕</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  document.getElementById('rev-content').innerHTML = html;
+}
+
+function renderDepContent() {
+  const entries = cache.dep.filter(e => e.member === depMember);
+  const total = entries.reduce((s,e) => s + parseFloat(e.amount||0), 0);
+  const color = MEMBER_COLORS[depMember];
+  let html = `<div class="card"><div class="card-title">Total dépenses — ${MEMBER_LABELS[depMember]}</div>
+    <div style="font-size:28px;font-weight:800;color:${color}">-${fmt(total)}</div></div>`;
+  if (!entries.length) {
+    html += `<div class="empty-state"><div class="big">💳</div>Aucune dépense ce mois</div>`;
+  } else {
+    html += `<div class="section-title">Dépenses</div><div class="entry-list">`;
+    entries.forEach(e => {
+      html += `<div class="entry-item">
+        <div class="entry-info"><div class="entry-name">${e.cat}</div><div class="entry-sub">${e.desc||'—'}</div></div>
+        <div class="entry-amount expense">-${fmt(parseFloat(e.amount))}</div>
+        <button class="entry-del" onclick="deleteEntry('dep','${e.id}')">✕</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  document.getElementById('dep-content').innerHTML = html;
+}
+
+function renderDashboard() {
+  const revAll = cache.rev;
+  const depAll = cache.dep;
+  const totalRev = revAll.reduce((s,e) => s + parseFloat(e.amount||0), 0);
+  const totalDep = depAll.reduce((s,e) => s + parseFloat(e.amount||0), 0);
+  const surplus = totalRev - totalDep;
+  const pct = totalRev > 0 ? Math.min(100, Math.round(totalDep/totalRev*100)) : 0;
+
+  let html = `<div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Revenus</div><div class="kpi-value blue">+${fmt(totalRev)}</div></div>
+    <div class="kpi"><div class="kpi-label">Dépenses</div><div class="kpi-value red">-${fmt(totalDep)}</div></div>
+    <div class="kpi" style="grid-column:span 2"><div class="kpi-label">Solde disponible</div>
+      <div class="kpi-value ${surplus>=0?'green':'red'}">${surplus>=0?'+':''}${fmt(surplus)}</div></div>
+  </div>`;
+
+  html += `<div class="card"><div class="card-title">Utilisation du budget</div>
+    <div class="prog-wrap">
+      <div class="prog-label"><span>${pct}% dépensé</span><span>${fmt(totalDep)} / ${fmt(totalRev)}</span></div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${pct>90?'#ff5f7e':pct>70?'#ffd166':'#4cde9a'}"></div></div>
+    </div>`;
+
+  MEMBERS.forEach(m => {
+    const mr = revAll.filter(e=>e.member===m).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const md = depAll.filter(e=>e.member===m).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    if (!mr && !md) return;
+    const mp = mr > 0 ? Math.min(100, Math.round(md/mr*100)) : 0;
+    html += `<div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+        <span><span class="dot ${m}"></span>${MEMBER_LABELS[m]}</span>
+        <span style="color:var(--muted)">${fmt(md)} / ${fmt(mr)}</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${mp}%;background:${MEMBER_COLORS[m]}"></div></div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Categories
+  const catMap = {};
+  depAll.forEach(e => {
+    if (!catMap[e.cat]) catMap[e.cat] = { total:0, byMember:{} };
+    catMap[e.cat].total += parseFloat(e.amount||0);
+    catMap[e.cat].byMember[e.member] = (catMap[e.cat].byMember[e.member]||0) + parseFloat(e.amount||0);
+  });
+  const cats = Object.entries(catMap).sort((a,b) => b[1].total - a[1].total);
+  if (cats.length) {
+    html += `<div class="card"><div class="card-title">Dépenses par catégorie</div>`;
+    const maxCat = cats[0][1].total;
+    cats.forEach(([cat, data]) => {
+      html += `<div class="cat-row"><div class="cat-row-label">${cat.length>15?cat.slice(0,13)+'…':cat}</div><div class="cat-bar-wrap">`;
+      MEMBERS.forEach(m => {
+        const seg = data.byMember[m]||0;
+        const sp = maxCat > 0 ? seg/maxCat*100 : 0;
+        if (sp > 0) html += `<div class="cat-bar-seg" style="width:${sp}%;background:${MEMBER_COLORS[m]}"></div>`;
+      });
+      html += `</div><div class="cat-amount">${fmt(data.total)}</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Recent
+  const all = [...revAll.map(e=>({...e,type:'rev'})),...depAll.map(e=>({...e,type:'dep'}))].sort((a,b)=>b.id-a.id).slice(0,10);
+  if (all.length) {
+    html += `<div class="card"><div class="card-title">Dernières entrées</div>`;
+    all.forEach(e => {
+      const isRev = e.type==='rev';
+      html += `<div class="recent-item">
+        <div class="recent-icon" style="background:${MEMBER_COLORS[e.member]}22">${isRev?'💶':'💳'}</div>
+        <div class="recent-info">
+          <div class="recent-name">${isRev?e.source:e.cat}</div>
+          <div class="recent-meta"><span class="dot ${e.member}"></span>${MEMBER_LABELS[e.member]} · ${e.desc||'—'}</div>
+        </div>
+        <div class="recent-amt ${isRev?'income':'expense'}">${isRev?'+':'-'}${fmt(parseFloat(e.amount))}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  document.getElementById('dashboard-content').innerHTML = html;
+}
+
+function renderObjectifs() {
+  const totalRev = cache.rev.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totalDep = cache.dep.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const surplus = Math.max(0, totalRev - totalDep);
+  const goals = cache.goals;
+
+  document.getElementById('surplus-section').innerHTML = `
+    <div class="surplus-banner">
+      <div><div class="surplus-label">💚 Surplus ce mois</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Revenus − Dépenses</div></div>
+      <div><div class="surplus-val">${fmt(surplus)}</div>
+        ${surplus>0?`<button class="btn-sm" style="background:var(--accent);color:#fff;margin-top:5px;width:100%" onclick="openModal('transfer')">💸 Virer</button>`:''}
+      </div>
+    </div>`;
+
+  let ghtml = '';
+  if (!goals.length) {
+    ghtml = `<div class="empty-state"><div class="big">🎯</div>Aucun objectif. Créez-en un !</div>`;
+  } else {
+    goals.forEach((g,i) => {
+      const saved = g.saved||0;
+      const pct = g.target>0 ? Math.min(100, Math.round(saved/g.target*100)) : 0;
+      ghtml += `<div class="goal-card">
+        <div class="goal-header">
+          <div class="goal-emoji">${g.emoji}</div>
+          <div class="goal-info">
+            <div class="goal-name">${g.name}</div>
+            <div class="goal-amounts">${fmt(saved)} / ${fmt(g.target)} · Reste: ${fmt(Math.max(0,g.target-saved))}</div>
+          </div>
+          <div class="goal-pct" style="color:${g.color}">${pct}%</div>
+        </div>
+        <div class="prog-bar" style="height:11px;border-radius:99px">
+          <div class="prog-fill" style="width:${pct}%;background:${g.color};border-radius:99px"></div>
+        </div>
+        ${g.history&&g.history.length?`<div style="margin-top:8px"><div class="card-title" style="margin-bottom:5px">Historique</div>
+          ${g.history.slice(-4).reverse().map(h=>`<div class="history-item"><span>${h.month} ${h.year}</span><span class="history-amt">+${fmt(h.amount)}</span></div>`).join('')}
+        </div>`:''}
+        <div class="goal-actions">
+          <button class="btn-sm btn-outline" onclick="openManualAt(${i})">➕ Ajouter</button>
+          <button class="btn-sm" style="background:rgba(255,95,126,.15);color:#ff5f7e" onclick="deleteGoal(${i})">🗑️</button>
+        </div>
+      </div>`;
+    });
+  }
+  ghtml += `<button class="add-btn" onclick="openModal('goal')">＋ Créer un nouvel objectif</button>
+             <button class="add-btn" style="margin-top:4px" onclick="openModal('manual')">➕ Ajouter manuellement à un objectif</button>`;
+  document.getElementById('goals-list').innerHTML = ghtml;
+}
+
+// ===================================================
+//  ADD / DELETE
+// ===================================================
+async function addEntry(type) {
+  const member = type==='rev' ? revMember : depMember;
+  const amount = parseFloat(document.getElementById(type+'-amount').value);
+  if (!amount || amount <= 0) return;
+
+  closeModal(type);
+  showLoading('Enregistrement...');
+
+  let params;
+  if (type==='rev') {
+    params = { action:'addRev', month:currentMonth, year:currentYear, member,
+      source: document.getElementById('rev-source').value,
+      desc:   document.getElementById('rev-desc').value, amount };
+  } else {
+    params = { action:'addDep', month:currentMonth, year:currentYear, member,
+      cat:  document.getElementById('dep-cat').value,
+      desc: document.getElementById('dep-desc').value, amount };
+  }
+
+  const r = await api(params);
+  if (r.ok) {
+    // clear fields
+    document.getElementById(type+'-amount').value = '';
+    document.getElementById(type==='rev'?'rev-desc':'dep-desc').value = '';
+    await syncAll();
+  } else {
+    hideLoading();
+    alert('Erreur: ' + (r.error||'inconnue'));
+  }
+}
+
+async function deleteEntry(type, id) {
+  showLoading('Suppression...');
+  const action = type==='rev' ? 'delRev' : 'delDep';
+  await api({ action, id });
+  await syncAll();
+}
+
+// ===================================================
+//  GOALS
+// ===================================================
+function selEmoji(el, e) { document.querySelectorAll('.emoji-opt').forEach(x=>x.classList.remove('selected')); el.classList.add('selected'); selEmojiVal=e; }
+function selColor(el, c) { document.querySelectorAll('.color-opt').forEach(x=>x.classList.remove('selected')); el.classList.add('selected'); selColorVal=c; }
+
+async function addGoal() {
+  const name = document.getElementById('goal-name').value.trim();
+  const target = parseFloat(document.getElementById('goal-target').value);
+  if (!name || !target || target<=0) return;
+  cache.goals.push({ name, emoji:selEmojiVal, color:selColorVal, target, saved:0, history:[] });
+  closeModal('goal');
+  document.getElementById('goal-name').value = '';
+  document.getElementById('goal-target').value = '';
+  showLoading('Sauvegarde...');
+  await api({ action:'saveGoals', goals: JSON.stringify(cache.goals) });
+  hideLoading();
+  renderObjectifs();
+}
+
+async function deleteGoal(idx) {
+  cache.goals.splice(idx, 1);
+  showLoading('Sauvegarde...');
+  await api({ action:'saveGoals', goals: JSON.stringify(cache.goals) });
+  hideLoading();
+  renderObjectifs();
+}
+
+async function doTransfer() {
+  const totalRev = cache.rev.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totalDep = cache.dep.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const surplus = Math.max(0, totalRev - totalDep);
+  const amount = parseFloat(document.getElementById('transfer-amount').value);
+  if (!amount||amount<=0||amount>surplus) return;
+  const idx = parseInt(document.getElementById('transfer-goal').value);
+  cache.goals[idx].saved = (cache.goals[idx].saved||0) + amount;
+  cache.goals[idx].history = cache.goals[idx].history||[];
+  cache.goals[idx].history.push({ amount, month:MONTHS[currentMonth], year:currentYear });
+  closeModal('transfer');
+  document.getElementById('transfer-amount').value='';
+  showLoading('Sauvegarde...');
+  await api({ action:'saveGoals', goals: JSON.stringify(cache.goals) });
+  hideLoading();
+  renderObjectifs();
+}
+
+async function doManual() {
+  const amount = parseFloat(document.getElementById('manual-amount').value);
+  if (!amount||amount<=0) return;
+  const idx = parseInt(document.getElementById('manual-goal').value);
+  cache.goals[idx].saved = (cache.goals[idx].saved||0) + amount;
+  cache.goals[idx].history = cache.goals[idx].history||[];
+  cache.goals[idx].history.push({ amount, month:MONTHS[currentMonth], year:currentYear });
+  closeModal('manual');
+  document.getElementById('manual-amount').value='';
+  showLoading('Sauvegarde...');
+  await api({ action:'saveGoals', goals: JSON.stringify(cache.goals) });
+  hideLoading();
+  renderObjectifs();
+}
+
+// ===================================================
+//  MODALS
+// ===================================================
+function openModal(type) {
+  if (type==='transfer'||type==='manual') {
+    const sel = document.getElementById(type+'-goal');
+    sel.innerHTML = cache.goals.map((g,i)=>`<option value="${i}">${g.emoji} ${g.name}</option>`).join('');
+  }
+  document.getElementById('modal-'+type).classList.add('open');
+}
+function openManualAt(idx) {
+  const sel = document.getElementById('manual-goal');
+  sel.innerHTML = cache.goals.map((g,i)=>`<option value="${i}" ${i===idx?'selected':''}>${g.emoji} ${g.name}</option>`).join('');
+  document.getElementById('modal-manual').classList.add('open');
+}
+function closeModal(type) { document.getElementById('modal-'+type).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }));
+
+// ===================================================
+//  FORMAT
+// ===================================================
+function fmt(n) {
+  return (n||0).toLocaleString('fr-TN',{minimumFractionDigits:3,maximumFractionDigits:3}) + ' DT';
+}
+
+// ===================================================
+//  SERVICE WORKER
+// ===================================================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+// ===================================================
+//  INIT
+// ===================================================
+syncAll();
+</script>
+</body>
+</html>
