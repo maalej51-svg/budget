@@ -1,0 +1,25 @@
+let API_URL = 'https://script.google.com/macros/s/AKfycbypNA9UuzvvgEeFuNDuTl_ysZ58MPWQFl2guzqrV-mHS1KxKEuT7VZSkOPz6Ti71BzC/exec';
+function api(params) {
+  setSyncing(true);
+  return new Promise((resolve) => {
+    const cbName = 'cb_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      setSyncing(false); setOnline(false);
+      resolve({ error: 'Timeout' });
+    }, 15000);
+    window[cbName] = function(data) {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      setSyncing(false); setOnline(true);
+      resolve(data);
+    };
+    params.callback = cbName;
+    script.src = API_URL + '?' + new URLSearchParams(params).toString();
+    script.onerror = () => { clearTimeout(timer); setSyncing(false); setOnline(false); resolve({ error: 'Network error' }); };
+    document.head.appendChild(script);
+  });
+}
